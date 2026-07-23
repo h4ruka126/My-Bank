@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haruka's Bank — Earnings Passbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --cover-green:#1f3a2e;
+    --cover-green-dark:#152a20;
+    --paper:#edeadd;
+    --paper-line:#d8d2bc;
+    --ink:#211f1a;
+    --ink-soft:#5c5748;
+    --gold:#b8912f;
+    --gold-soft:#dcc584;
+    --earn:#2f6b4f;
+    --earn-bg:#e3ede6;
+    --settled:#8a6a1f;
+    --settled-bg:#f1e6c8;
+    --error:#a23e2b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:#0f1c16;
+    font-family:'Fraunces', serif;
+    color:var(--ink);
+    min-height:100vh;
+    padding:32px 16px 80px;
+    display:flex;
+    justify-content:center;
+  }
+  .app{ width:100%; max-width:640px; }
+
+  /* ---- Auth screen ---- */
+  .auth-wrap{ width:100%; max-width:420px; margin:0 auto; }
+  .auth-card{
+    background:var(--paper);
+    border-radius:18px;
+    padding:30px 26px;
+    box-shadow:0 18px 40px rgba(0,0,0,0.35);
+  }
+  .auth-title{ font-size:26px; font-weight:600; font-style:italic; margin:0 0 4px; color:var(--cover-green); text-align:center; }
+  .auth-sub{ font-size:13px; font-style:italic; color:var(--ink-soft); text-align:center; margin:0 0 22px; }
+  .auth-tabs{ display:flex; gap:8px; margin-bottom:20px; }
+  .auth-tab{ flex:1; padding:10px 0; text-align:center; font-family:'Fraunces', serif; font-size:13px; font-weight:600; border:1px solid var(--paper-line); background:transparent; color:var(--ink-soft); cursor:pointer; border-radius:6px; }
+  .auth-tab.active{ background:var(--earn-bg); border-color:var(--earn); color:var(--earn); }
+  .role-toggle{ display:flex; gap:8px; margin-bottom:14px; }
+  .role-btn{ flex:1; padding:10px 0; text-align:center; font-family:'Fraunces', serif; font-size:13px; font-weight:600; border:1px solid var(--paper-line); background:#fff; color:var(--ink-soft); cursor:pointer; border-radius:6px; }
+  .role-btn.active{ background:var(--cover-green); border-color:var(--cover-green); color:#f2ede0; }
+  .auth-error{ font-size:12px; color:var(--error); margin:2px 0 4px; min-height:14px; }
+  .auth-note{ font-size:12px; font-style:italic; color:var(--ink-soft); margin:14px 0 0; text-align:center; }
+  .kid-fields{ display:none; }
+  .kid-fields.show{ display:block; }
+
+  .cover{
+    background:linear-gradient(160deg,var(--cover-green),var(--cover-green-dark));
+    border-radius:18px 18px 4px 4px;
+    padding:30px 30px 30px;
+    color:#f2ede0;
+    position:relative;
+    box-shadow:0 18px 40px rgba(0,0,0,0.35);
+    overflow:hidden;
+  }
+  .cover::before{
+    content:"";
+    position:absolute;
+    inset:8px;
+    border:1px solid rgba(242,237,224,0.25);
+    border-radius:12px;
+    pointer-events:none;
+  }
+  .account-bar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:18px;
+    font-size:12px;
+    color:rgba(242,237,224,0.75);
+  }
+  .account-bar-info{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .kid-switcher{
+    font-family:'Fraunces', serif;
+    font-size:12px;
+    background:rgba(242,237,224,0.12);
+    color:#f2ede0;
+    border:1px solid rgba(242,237,224,0.3);
+    border-radius:5px;
+    padding:3px 6px;
+  }
+  .account-bar button{
+    font-family:'Fraunces', serif;
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid rgba(242,237,224,0.35);
+    color:rgba(242,237,224,0.85);
+    padding:5px 10px;
+    border-radius:5px;
+    cursor:pointer;
+  }
+  .account-bar button:hover{ border-color:var(--gold-soft); color:var(--gold-soft); }
+  .cover-eyebrow{ font-size:12px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--gold-soft); margin:0 0 8px; }
+  .cover-title{ font-size:32px; font-weight:600; font-style:italic; margin:0 0 26px; }
+  .balance-label{ font-size:12px; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:var(--gold-soft); margin:0 0 4px; }
+  .balance-amount{ font-size:52px; font-weight:700; line-height:1; letter-spacing:-0.01em; font-variant-numeric:tabular-nums; }
+  .balance-sub{ font-size:13px; font-style:italic; color:rgba(242,237,224,0.65); margin-top:8px; }
+  .cover-stats{ display:flex; gap:24px; margin-top:24px; padding-top:18px; border-top:1px dashed rgba(242,237,224,0.25); }
+  .cover-stat-label{ font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:rgba(242,237,224,0.55); }
+  .cover-stat-value{ font-size:17px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .perf{ height:14px; background: radial-gradient(circle 5px at 12px 0, transparent 5px, var(--paper) 5.5px) repeat-x, var(--cover-green-dark); background-size:24px 14px; }
+  .ledger{ background:var(--paper); padding:22px 24px 8px; border-radius:0 0 4px 4px; box-shadow:0 18px 40px rgba(0,0,0,0.25); }
+  .tabs{ display:flex; gap:8px; margin-bottom:16px; }
+  .main-tabs{ display:flex; gap:8px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--paper-line); }
+  .main-tab{ flex:1; padding:9px 0; text-align:center; font-family:'Fraunces', serif; font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; border:none; background:transparent; color:var(--ink-soft); cursor:pointer; border-radius:6px; transition:all .15s ease; }
+  .main-tab.active{background:var(--cover-green);color:#f2ede0;}
+  .pie-wrap{ display:flex; align-items:center; gap:28px; flex-wrap:wrap; padding:6px 0 22px; }
+  .pie{ width:160px; height:160px; border-radius:50%; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08), 0 6px 16px rgba(0,0,0,0.12); }
+  .pie-legend{ flex:1; min-width:180px; display:flex; flex-direction:column; gap:10px; }
+  .legend-item{ display:flex; align-items:center; gap:9px; font-size:13px; }
+  .legend-swatch{ width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+  .legend-label{ flex:1; font-weight:600; }
+  .legend-value{ color:var(--ink-soft); font-size:12px; font-style:italic; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .tab{ flex:1; padding:10px 0; text-align:center; font-family:'Fraunces', serif; font-size:13px; font-weight:600; letter-spacing:0.03em; border:1px solid var(--paper-line); background:transparent; color:var(--ink-soft); cursor:pointer; border-radius:6px; transition:all .15s ease; }
+  .tab.active[data-tab="earn"]{background:var(--earn-bg);border-color:var(--earn);color:var(--earn);}
+  .tab.active[data-tab="deposit"]{background:var(--settled-bg);border-color:var(--settled);color:var(--settled);}
+  .form-row{display:flex;gap:10px;margin-bottom:10px;}
+  .field{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;}
+  .field label{ font-size:11px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .field input, .field select{ font-family:'Fraunces', serif; font-size:15px; padding:9px 10px; border:1px solid var(--paper-line); border-radius:6px; background:#fff; color:var(--ink); }
+  .field input:focus, .field select:focus{outline:2px solid var(--gold-soft);outline-offset:0;}
+  .amount-field input{font-weight:600;font-variant-numeric:tabular-nums;}
+  .cat-row{display:flex;gap:6px;align-items:flex-end;}
+  .cat-row .field{flex:1;}
+  .add-cat-btn{ flex-shrink:0; width:38px; height:38px; border:1px solid var(--paper-line); background:#fff; border-radius:6px; font-family:'Fraunces', serif; font-size:18px; color:var(--ink-soft); cursor:pointer; line-height:1; }
+  .add-cat-btn:hover{color:var(--earn);border-color:var(--earn);}
+  .del-cat-btn{font-size:14px;}
+  .del-cat-btn:hover{color:#a23e2b;border-color:#a23e2b;}
+  .del-cat-btn:disabled{opacity:0.25;cursor:not-allowed;color:var(--ink-soft);border-color:var(--paper-line);}
+  .new-cat-row{ display:none; gap:8px; margin-bottom:10px; }
+  .new-cat-row.show{display:flex;}
+  .new-cat-row input{ flex:1; font-family:'Fraunces', serif; font-size:14px; padding:8px 10px; border:1px solid var(--gold-soft); border-radius:6px; }
+  .new-cat-row button{ font-family:'Fraunces', serif; font-size:13px; font-weight:600; padding:0 14px; border:none; border-radius:6px; background:var(--earn); color:#fff; cursor:pointer; }
+  .add-btn{ width:100%; padding:12px 0; margin:6px 0 22px; border:none; border-radius:6px; font-family:'Fraunces', serif; font-size:14px; font-weight:600; letter-spacing:0.03em; cursor:pointer; color:#fff; transition:opacity .15s ease; }
+  .add-btn:hover{opacity:0.88;}
+  .add-btn[data-tab="earn"]{background:var(--earn);}
+  .add-btn[data-tab="deposit"]{background:var(--settled);}
+  .add-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .deposit-note{ font-size:12px; font-style:italic; color:var(--ink-soft); margin:-4px 0 10px; }
+  .deposit-msg{ font-size:12px; color:var(--settled); margin:-14px 0 16px; min-height:14px; }
+  .entries-title{ font-size:12px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-soft); margin:0 0 10px; display:flex; justify-content:space-between; }
+  .entry{ display:flex; align-items:center; gap:12px; padding:12px 2px; border-bottom:1px dashed var(--paper-line); }
+  .entry:last-child{border-bottom:none;}
+  .stamp{ font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:5px 8px; border-radius:4px; border:1.5px solid; transform:rotate(-3deg); white-space:nowrap; }
+  .stamp.earn{color:var(--earn);border-color:var(--earn);background:var(--earn-bg);}
+  .entry-main{flex:1;min-width:0;}
+  .entry-desc{font-size:14px;font-weight:600;color:var(--ink);}
+  .entry-meta{ font-size:12px; font-style:italic; color:var(--ink-soft); margin-top:2px; }
+  .entry-amount{ font-size:16px; font-weight:600; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .entry-amount.earn{color:var(--earn);}
+  .del-btn{ background:none; border:none; color:var(--ink-soft); font-size:16px; cursor:pointer; padding:2px 4px; line-height:1; opacity:0.5; }
+  .del-btn:hover{opacity:1;color:#a23e2b;}
+  .empty{ text-align:center; padding:36px 10px 30px; color:var(--ink-soft); font-size:14px; font-style:italic; }
+  .empty-icon{font-size:26px;margin-bottom:8px;}
+  footer{ text-align:center; font-size:11px; font-style:italic; color:#6b7f74; margin-top:18px; letter-spacing:0.02em; }
+  .loading-msg{ text-align:center; color:#e3ede6; font-size:14px; font-style:italic; padding:60px 0; }
+  @media (max-width:480px){ .balance-amount{font-size:40px;} .form-row{flex-direction:column;gap:8px;} }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap" id="authScreen">
+  <div class="auth-card">
+    <p class="auth-title">Haruka's Bank</p>
+    <p class="auth-sub">A passbook for tutoring &amp; chores money</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-authtab="login" onclick="setAuthTab('login')">Log in</button>
+      <button class="auth-tab" data-authtab="signup" onclick="setAuthTab('signup')">Sign up</button>
+    </div>
+
+    <div id="loginPanel">
+      <div class="form-row"><div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com"></div></div>
+      <div class="form-row"><div class="field"><label>Password</label><input id="loginPassword" type="password" placeholder="••••••••"></div></div>
+      <p class="auth-error" id="loginError"></p>
+      <button class="add-btn" data-tab="earn" onclick="doLogin()">Log in</button>
+    </div>
+
+    <div id="signupPanel" style="display:none;">
+      <div class="role-toggle">
+        <button class="role-btn active" id="roleBtn-kid" onclick="setSignupRole('kid')">I'm a kid</button>
+        <button class="role-btn" id="roleBtn-parent" onclick="setSignupRole('parent')">I'm a parent</button>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>First name</label><input id="signupFirstName" type="text" placeholder="Haruka"></div>
+        <div class="field"><label>Last name</label><input id="signupLastName" type="text" placeholder="Tanaka"></div>
+      </div>
+      <div class="form-row"><div class="field"><label>Email</label><input id="signupEmail" type="email" placeholder="you@example.com"></div></div>
+      <div class="form-row"><div class="field"><label>Password</label><input id="signupPassword" type="password" placeholder="At least 6 characters"></div></div>
+
+      <div class="kid-fields" id="kidFields">
+        <p class="deposit-note" style="margin-top:0;">Enter your kid's name so you get access to their page.</p>
+        <div class="form-row">
+          <div class="field"><label>Kid's first name</label><input id="signupKidFirstName" type="text" placeholder="Haruka"></div>
+          <div class="field"><label>Kid's last name</label><input id="signupKidLastName" type="text" placeholder="Tanaka"></div>
+        </div>
+      </div>
+
+      <p class="auth-error" id="signupError"></p>
+      <button class="add-btn" data-tab="earn" onclick="doSignUp()">Create account</button>
+      <p class="auth-note" id="signupNote"></p>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="appScreen" style="display:none;">
+  <div class="cover">
+    <div class="account-bar">
+      <div class="account-bar-info">
+        <span id="accountBarText">Signed in</span>
+        <select class="kid-switcher" id="kidSwitcher" style="display:none;" onchange="onKidSwitch()"></select>
+      </div>
+      <button onclick="doLogout()">Log out</button>
+    </div>
+    <p class="cover-eyebrow">Passbook · Personal Ledger</p>
+    <h1 class="cover-title" id="coverTitle">Bank</h1>
+    <p class="balance-label">Owed right now</p>
+    <div class="balance-amount">¥<span id="balanceValue">0</span></div>
+    <p class="balance-sub" id="balanceSub">This is what my parents still owe me</p>
+    <div class="cover-stats">
+      <div><div class="cover-stat-label">Total Earned</div><div class="cover-stat-value" id="totalEarned">¥0</div></div>
+      <div><div class="cover-stat-label">Total Deposited</div><div class="cover-stat-value" id="totalDeposited">¥0</div></div>
+    </div>
+  </div>
+  <div class="perf"></div>
+  <div class="ledger">
+    <div class="main-tabs">
+      <button class="main-tab active" data-maintab="ledger" onclick="setMainTab('ledger')">Ledger</button>
+      <button class="main-tab" data-maintab="stats" onclick="setMainTab('stats')">Stats</button>
+    </div>
+
+    <div id="panel-ledger">
+      <div class="tabs">
+        <button class="tab active" data-tab="earn" onclick="setTab('earn')">I earned money</button>
+        <button class="tab" data-tab="deposit" onclick="setTab('deposit')">Deposit</button>
+      </div>
+
+    <div id="earnForm">
+      <div class="form-row">
+        <div class="field" style="flex:2;">
+          <label>What did you do?</label>
+          <input id="descInput" type="text" placeholder="Tutored my brother — math">
+        </div>
+        <div class="field amount-field">
+          <label>Amount (¥)</label>
+          <input id="amountInput" type="number" min="0" step="1" placeholder="500">
+        </div>
+      </div>
+      <div class="form-row cat-row">
+        <div class="field">
+          <label>Category</label>
+          <select id="categoryInput" onchange="updateDelBtn('earn')"></select>
+        </div>
+        <button class="add-cat-btn" onclick="toggleNewCat('earn')" title="Add custom category">+</button>
+        <button class="add-cat-btn del-cat-btn" id="delCatBtn-earn" onclick="deleteCat('earn')" title="Delete this category">🗑</button>
+      </div>
+      <div class="new-cat-row" id="newCatRow-earn">
+        <input id="newCatInput-earn" type="text" placeholder="New category name">
+        <button onclick="confirmNewCat('earn')">Add</button>
+      </div>
+      <button class="add-btn" data-tab="earn" onclick="addEarn()">Add to ledger</button>
+    </div>
+
+    <div id="depositForm" style="display:none;">
+      <div class="form-row">
+        <div class="field">
+          <label>Which ledger entry?</label>
+          <select id="depositEntrySelect" onchange="onDepositEntryChange()"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field amount-field">
+          <label>Amount (¥)</label>
+          <input id="depositAmountInput" type="number" min="0" step="1" placeholder="500">
+        </div>
+      </div>
+      <div class="form-row cat-row">
+        <div class="field">
+          <label>Where did it go?</label>
+          <select id="destinationInput" onchange="updateDelBtn('deposit')"></select>
+        </div>
+        <button class="add-cat-btn" onclick="toggleNewCat('deposit')" title="Add custom destination">+</button>
+        <button class="add-cat-btn del-cat-btn" id="delCatBtn-deposit" onclick="deleteCat('deposit')" title="Delete this destination">🗑</button>
+      </div>
+      <div class="new-cat-row" id="newCatRow-deposit">
+        <input id="newCatInput-deposit" type="text" placeholder="New destination name">
+        <button onclick="confirmNewCat('deposit')">Add</button>
+      </div>
+      <button class="add-btn" data-tab="deposit" id="depositBtn" onclick="addDeposit()">Deposit</button>
+      <p class="deposit-msg" id="depositMsg"></p>
+    </div>
+
+      <p class="entries-title"><span>Ledger</span><span id="entryCount">0 entries</span></p>
+      <div id="entriesList"></div>
+    </div>
+
+    <div id="panel-stats" style="display:none;">
+      <p class="entries-title"><span>Earned by category</span><span id="statsMonthLabel"></span></p>
+      <p class="deposit-note" id="statsTotal">Total earned: ¥0</p>
+      <div class="pie-wrap">
+        <div class="pie" id="pieChart"></div>
+        <div class="pie-legend" id="pieLegend"></div>
+      </div>
+    </div>
+  </div>
+  <footer>synced to your account · Supabase-backed</footer>
+</div>
+
+<script>
+/* ---------------- Supabase setup ---------------- */
+const SUPABASE_URL = 'https://jgaklsoyhsojkdozwmig.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpnYWtsc295aHNvamtkb3p3bWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MDEzMjEsImV4cCI6MjA5OTM3NzMyMX0.uqPMQoGjf8iVHrcA9G4sspMms-ien32b4QtriV4KHMA';
+
+// No browser storage is used for the session — you'll log in each time you open the app.
+const memoryStorage = (() => {
+  let store = {};
+  return {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = v; },
+    removeItem: (k) => { delete store[k]; },
+  };
+})();
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storage: memoryStorage, persistSession: false, autoRefreshToken: true, detectSessionInUrl: false }
+});
+
+/* ---------------- Auth state ---------------- */
+let myProfile = null;      // { id, first_name, last_name, role }
+let activeUserId = null;   // whose bank_data we're viewing (self, or a linked kid for parents)
+let activeUserLabel = '';
+let kidOptions = [];       // for parents: [{id, first_name, last_name}]
+
+function setAuthTab(tab){
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.authtab === tab));
+  document.getElementById('loginPanel').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupPanel').style.display = tab === 'signup' ? 'block' : 'none';
+}
+
+function setSignupRole(role){
+  document.getElementById('roleBtn-kid').classList.toggle('active', role === 'kid');
+  document.getElementById('roleBtn-parent').classList.toggle('active', role === 'parent');
+  document.getElementById('kidFields').classList.toggle('show', role === 'parent');
+  document.getElementById('signupPanel').dataset.role = role;
+}
+document.addEventListener('DOMContentLoaded', () => { document.getElementById('signupPanel').dataset.role = 'kid'; });
+
+async function doSignUp(){
+  const firstName = document.getElementById('signupFirstName').value.trim();
+  const lastName = document.getElementById('signupLastName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const role = document.getElementById('signupPanel').dataset.role || 'kid';
+  const kidFirstName = document.getElementById('signupKidFirstName').value.trim();
+  const kidLastName = document.getElementById('signupKidLastName').value.trim();
+  const err = document.getElementById('signupError');
+  const note = document.getElementById('signupNote');
+  err.textContent = ''; note.textContent = '';
+
+  if(!firstName || !lastName){ err.textContent = 'Enter your first and last name.'; return; }
+  if(!email || !password){ err.textContent = 'Enter an email and password.'; return; }
+  if(password.length < 6){ err.textContent = 'Password must be at least 6 characters.'; return; }
+  if(role === 'parent' && (!kidFirstName || !kidLastName)){ err.textContent = "Enter your kid's first and last name."; return; }
+
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if(error){ err.textContent = error.message; return; }
+
+  if(!data.session){
+    note.textContent = 'Check your email for a confirmation link, then log in.';
+    return;
+  }
+
+  await finishSignupProfile(data.user.id, { firstName, lastName, email, role, kidFirstName, kidLastName });
+  await postLoginSetup();
+}
+
+async function finishSignupProfile(userId, info){
+  await sb.from('bank_profiles').insert({
+    id: userId, first_name: info.firstName, last_name: info.lastName, email: info.email, role: info.role
+  });
+  if(info.role === 'parent'){
+    await sb.from('bank_parent_links').insert({
+      parent_id: userId, kid_first_name: info.kidFirstName, kid_last_name: info.kidLastName
+    });
+  }
+}
+
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  err.textContent = '';
+  if(!email || !password){ err.textContent = 'Enter your email and password.'; return; }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ err.textContent = error.message; return; }
+  await postLoginSetup();
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  myProfile = null; activeUserId = null; kidOptions = [];
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'block';
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPassword').value = '';
+}
+
+/* ---------------- Post-login setup ---------------- */
+async function postLoginSetup(){
+  const { data: { user } } = await sb.auth.getUser();
+  if(!user) return;
+
+  let { data: profile } = await sb.from('bank_profiles').select('*').eq('id', user.id).maybeSingle();
+  myProfile = profile;
+  if(!myProfile) return; // shouldn't happen once signup completes
+
+  if(myProfile.role === 'kid'){
+    await claimPendingLinks();
+    activeUserId = myProfile.id;
+    activeUserLabel = myProfile.first_name;
+    document.getElementById('accountBarText').textContent = `Signed in as ${myProfile.first_name} · kid`;
+    document.getElementById('kidSwitcher').style.display = 'none';
+    document.getElementById('balanceSub').textContent = 'This is what my parents still owe me';
+  } else {
+    const { data: links } = await sb.from('bank_parent_links').select('kid_id').eq('parent_id', myProfile.id).not('kid_id', 'is', null);
+    const kidIds = (links || []).map(l => l.kid_id);
+    kidOptions = [];
+    if(kidIds.length){
+      const { data: kids } = await sb.from('bank_profiles').select('id, first_name, last_name').in('id', kidIds);
+      kidOptions = kids || [];
+    }
+    document.getElementById('accountBarText').textContent = `Signed in as ${myProfile.first_name} · parent`;
+    populateKidSwitcher();
+    if(kidOptions.length === 0){
+      document.getElementById('coverTitle').textContent = 'Bank';
+      document.getElementById('balanceSub').textContent = 'Waiting for your kid to sign up and get linked';
+      document.getElementById('authScreen').style.display = 'none';
+      document.getElementById('appScreen').style.display = 'block';
+      entries = []; earnCategories = [...defaultEarnCategories]; depositDestinations = [...defaultDepositDestinations];
+      populateSelects(); render();
+      return;
+    }
+    activeUserId = kidOptions[0].id;
+    activeUserLabel = kidOptions[0].first_name;
+    document.getElementById('balanceSub').textContent = "This is what you still owe your kid";
+  }
+
+  document.getElementById('coverTitle').textContent = activeUserLabel + "'s Bank";
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  await loadData();
+}
+
+function populateKidSwitcher(){
+  const sel = document.getElementById('kidSwitcher');
+  if(kidOptions.length <= 1){
+    sel.style.display = 'none';
+    return;
+  }
+  sel.style.display = 'inline-block';
+  sel.innerHTML = kidOptions.map(k => `<option value="${k.id}">${escapeHtml(k.first_name)} ${escapeHtml(k.last_name)}</option>`).join('');
+}
+
+async function onKidSwitch(){
+  const sel = document.getElementById('kidSwitcher');
+  const kid = kidOptions.find(k => k.id === sel.value);
+  if(!kid) return;
+  activeUserId = kid.id;
+  activeUserLabel = kid.first_name;
+  document.getElementById('coverTitle').textContent = activeUserLabel + "'s Bank";
+  await loadData();
+}
+
+async function claimPendingLinks(){
+  await sb.from('bank_parent_links')
+    .update({ kid_id: myProfile.id })
+    .is('kid_id', null)
+    .ilike('kid_first_name', myProfile.first_name)
+    .ilike('kid_last_name', myProfile.last_name);
+}
+
+/* ---------------- Ledger app (same as before, now backed by Supabase) ---------------- */
+let currentTab = 'earn';
+let entries = [];
+let earnCategories = ['Tutoring','Chores','Other'];
+let depositDestinations = ['Cash','Credit card','Spent directly','Other'];
+const defaultEarnCategories = ['Tutoring','Chores','Other'];
+const defaultDepositDestinations = ['Cash','Credit card','Spent directly','Other'];
+
+function setTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('earnForm').style.display = tab === 'earn' ? 'block' : 'none';
+  document.getElementById('depositForm').style.display = tab === 'deposit' ? 'block' : 'none';
+  document.getElementById('depositMsg').textContent = '';
+}
+
+function setMainTab(tab){
+  document.querySelectorAll('.main-tab').forEach(t => t.classList.toggle('active', t.dataset.maintab === tab));
+  document.getElementById('panel-ledger').style.display = tab === 'ledger' ? 'block' : 'none';
+  document.getElementById('panel-stats').style.display = tab === 'stats' ? 'block' : 'none';
+  if(tab === 'stats') renderStats();
+}
+
+function fmt(n){ return Math.round(Math.abs(n)).toLocaleString('en-US'); }
+
+function populateSelects(){
+  const catSel = document.getElementById('categoryInput');
+  catSel.innerHTML = earnCategories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  const destSel = document.getElementById('destinationInput');
+  destSel.innerHTML = depositDestinations.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  updateDelBtn('earn');
+  updateDelBtn('deposit');
+}
+
+function updateDelBtn(type){
+  const sel = document.getElementById(type === 'earn' ? 'categoryInput' : 'destinationInput');
+  const defaults = type === 'earn' ? defaultEarnCategories : defaultDepositDestinations;
+  const btn = document.getElementById('delCatBtn-' + type);
+  btn.disabled = defaults.includes(sel.value);
+}
+
+async function deleteCat(type){
+  const sel = document.getElementById(type === 'earn' ? 'categoryInput' : 'destinationInput');
+  const defaults = type === 'earn' ? defaultEarnCategories : defaultDepositDestinations;
+  const val = sel.value;
+  if(defaults.includes(val)) return;
+
+  if(type === 'earn'){
+    earnCategories = earnCategories.filter(c => c !== val);
+  } else {
+    depositDestinations = depositDestinations.filter(c => c !== val);
+  }
+  populateSelects();
+  await saveData();
+}
+
+function toggleNewCat(type){
+  const row = document.getElementById('newCatRow-' + type);
+  row.classList.toggle('show');
+  if(row.classList.contains('show')) document.getElementById('newCatInput-' + type).focus();
+}
+
+async function confirmNewCat(type){
+  const input = document.getElementById('newCatInput-' + type);
+  const val = input.value.trim();
+  if(!val) return;
+  if(type === 'earn'){
+    if(!earnCategories.includes(val)) earnCategories.splice(earnCategories.length - 1, 0, val);
+    populateSelects();
+    document.getElementById('categoryInput').value = val;
+  } else {
+    if(!depositDestinations.includes(val)) depositDestinations.splice(depositDestinations.length - 1, 0, val);
+    populateSelects();
+    document.getElementById('destinationInput').value = val;
+  }
+  updateDelBtn(type);
+  input.value = '';
+  document.getElementById('newCatRow-' + type).classList.remove('show');
+  await saveData();
+}
+
+async function loadData(){
+  if(!activeUserId) return;
+  try{
+    const { data } = await sb.from('bank_data').select('data').eq('user_id', activeUserId).maybeSingle();
+    const stored = data ? data.data : null;
+    entries = (stored && stored.entries) || [];
+    earnCategories = (stored && stored.earnCategories) || [...defaultEarnCategories];
+    depositDestinations = (stored && stored.depositDestinations) || [...defaultDepositDestinations];
+  }catch(e){
+    entries = []; earnCategories = [...defaultEarnCategories]; depositDestinations = [...defaultDepositDestinations];
+  }
+  populateSelects();
+  render();
+}
+
+async function saveData(){
+  if(!activeUserId) return;
+  try{
+    await sb.from('bank_data').upsert({
+      user_id: activeUserId,
+      data: { entries, earnCategories, depositDestinations },
+      updated_at: new Date().toISOString()
+    });
+  }catch(e){ console.error('save failed', e); }
+}
+
+async function addEarn(){
+  const desc = document.getElementById('descInput').value.trim();
+  const amount = parseFloat(document.getElementById('amountInput').value);
+  const category = document.getElementById('categoryInput').value;
+  if(!desc){ document.getElementById('descInput').focus(); return; }
+  if(!amount || amount <= 0){ document.getElementById('amountInput').focus(); return; }
+
+  entries.unshift({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    desc, category, amount, remaining: amount, settlements: [],
+    date: new Date().toISOString(),
+  });
+
+  await saveData();
+  document.getElementById('descInput').value = '';
+  document.getElementById('amountInput').value = '';
+  document.getElementById('descInput').focus();
+  render();
+}
+
+function populateDepositEntrySelect(){
+  const sel = document.getElementById('depositEntrySelect');
+  const unsettled = entries.filter(e => e.remaining > 0);
+  if(unsettled.length === 0){
+    sel.innerHTML = '<option value="">No unpaid entries</option>';
+    document.getElementById('depositAmountInput').value = '';
+    return;
+  }
+  sel.innerHTML = unsettled.map(e => {
+    const dateStr = new Date(e.date).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    return `<option value="${e.id}">${escapeHtml(e.desc)} — ¥${fmt(e.remaining)} owed (${dateStr})</option>`;
+  }).join('');
+  onDepositEntryChange();
+}
+
+function onDepositEntryChange(){
+  const sel = document.getElementById('depositEntrySelect');
+  const entry = entries.find(e => e.id === sel.value);
+  document.getElementById('depositAmountInput').value = entry ? entry.remaining : '';
+}
+
+async function addDeposit(){
+  const entryId = document.getElementById('depositEntrySelect').value;
+  const destination = document.getElementById('destinationInput').value;
+  let amount = parseFloat(document.getElementById('depositAmountInput').value);
+  const msg = document.getElementById('depositMsg');
+
+  if(!entryId){ msg.textContent = "Pick which ledger entry this deposit is from."; return; }
+  const entry = entries.find(e => e.id === entryId);
+  if(!entry || entry.remaining <= 0){ msg.textContent = "That entry is already fully paid."; populateDepositEntrySelect(); return; }
+  if(!amount || amount <= 0){ document.getElementById('depositAmountInput').focus(); return; }
+  if(amount > entry.remaining) amount = entry.remaining;
+
+  entry.remaining -= amount;
+  entry.settlements.push({ destination, amount, date: new Date().toISOString() });
+
+  await saveData();
+  msg.textContent = `Applied ¥${fmt(amount)} to ${destination} from "${entry.desc}".`;
+  populateDepositEntrySelect();
+  render();
+}
+
+async function deleteEntry(id){
+  entries = entries.filter(e => e.id !== id);
+  await saveData();
+  render();
+}
+
+function render(){
+  const earned = entries.reduce((s,e) => s + e.amount, 0);
+  const balance = entries.reduce((s,e) => s + e.remaining, 0);
+  const deposited = earned - balance;
+
+  document.getElementById('balanceValue').textContent = fmt(balance);
+  document.getElementById('totalEarned').textContent = '¥' + fmt(earned);
+  document.getElementById('totalDeposited').textContent = '¥' + fmt(deposited);
+  document.getElementById('entryCount').textContent = entries.length + (entries.length === 1 ? ' entry' : ' entries');
+  document.getElementById('depositBtn').disabled = balance <= 0;
+  populateDepositEntrySelect();
+
+  const list = document.getElementById('entriesList');
+  if(entries.length === 0){
+    list.innerHTML = '<div class="empty"><div class="empty-icon">🪙</div>No entries yet — add your first one above.</div>';
+    renderStats();
+    return;
+  }
+
+  list.innerHTML = entries.map(e => {
+    const dateStr = new Date(e.date).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    let metaExtra;
+
+    if(e.remaining === e.amount){
+      metaExtra = '';
+    } else if(e.remaining === 0){
+      metaExtra = e.settlements.length === 1
+        ? ` · Paid via ${e.settlements[0].destination}`
+        : ' · Paid via ' + e.settlements.map(s => `${s.destination} ¥${fmt(s.amount)}`).join(' + ');
+    } else {
+      metaExtra = ` · ¥${fmt(e.remaining)} still owed`;
+    }
+
+    const meta = `${escapeHtml(e.category)} · ${dateStr}${metaExtra}`;
+
+    return `
+      <div class="entry">
+        <span class="stamp earn">Earned</span>
+        <div class="entry-main">
+          <div class="entry-desc">${escapeHtml(e.desc)}</div>
+          <div class="entry-meta">${meta}</div>
+        </div>
+        <div class="entry-amount earn">¥${fmt(e.amount)}</div>
+        <button class="del-btn" onclick="deleteEntry('${e.id}')" title="Delete">✕</button>
+      </div>
+    `;
+  }).join('');
+
+  renderStats();
+}
+
+function colorForCategory(cat){
+  const palette = ['#2f6b4f','#b8912f','#a23e2b','#5c7ea3','#7d5ba6','#3f8f8f','#c97b3d','#6b8e4e','#a85d8a','#8a6a1f'];
+  const allCats = [...new Set([...defaultEarnCategories, ...earnCategories])];
+  let idx = allCats.indexOf(cat);
+  if(idx === -1) idx = 0;
+  return palette[idx % palette.length];
+}
+
+function renderStats(){
+  const now = new Date();
+  const monthEntries = entries.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+
+  const totals = {};
+  monthEntries.forEach(e => { totals[e.category] = (totals[e.category] || 0) + e.amount; });
+  const cats = Object.keys(totals).sort((a,b) => totals[b] - totals[a]);
+  const total = cats.reduce((s,c) => s + totals[c], 0);
+
+  document.getElementById('statsMonthLabel').textContent = now.toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  document.getElementById('statsTotal').textContent = 'Total earned: ¥' + fmt(total);
+
+  const pieEl = document.getElementById('pieChart');
+  const legendEl = document.getElementById('pieLegend');
+
+  if(total === 0){
+    pieEl.style.background = 'var(--paper-line)';
+    legendEl.innerHTML = '<div class="empty" style="padding:0;text-align:left;">No earnings logged this month yet.</div>';
+    return;
+  }
+
+  let cumulative = 0;
+  const gradientParts = [];
+  const legendItems = [];
+  cats.forEach(cat => {
+    const color = colorForCategory(cat);
+    const pct = totals[cat] / total * 100;
+    const start = cumulative;
+    cumulative += pct;
+    gradientParts.push(`${color} ${start}% ${cumulative}%`);
+    legendItems.push(`
+      <div class="legend-item">
+        <span class="legend-swatch" style="background:${color}"></span>
+        <span class="legend-label">${escapeHtml(cat)}</span>
+        <span class="legend-value">¥${fmt(totals[cat])} · ${Math.round(pct)}%</span>
+      </div>
+    `);
+  });
+
+  pieEl.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+  legendEl.innerHTML = legendItems.join('');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('amountInput').addEventListener('keydown', e => { if(e.key === 'Enter') addEarn(); });
+document.getElementById('descInput').addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('amountInput').focus(); });
+document.getElementById('depositAmountInput').addEventListener('keydown', e => { if(e.key === 'Enter') addDeposit(); });
+document.getElementById('signupPanel').dataset.role = 'kid';
+</script>
+</body>
+</html>
