@@ -217,6 +217,27 @@
       <button class="add-btn" data-tab="earn" onclick="doSignUp()">Create account</button>
       <p class="auth-note" id="signupNote"></p>
     </div>
+
+    <div id="completeProfilePanel" style="display:none;">
+      <p class="auth-sub" style="margin-bottom:16px;">One more step — finish setting up your account.</p>
+      <div class="role-toggle">
+        <button class="role-btn active" id="cpRoleBtn-kid" onclick="setCompleteRole('kid')">I'm a kid</button>
+        <button class="role-btn" id="cpRoleBtn-parent" onclick="setCompleteRole('parent')">I'm a parent</button>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>First name</label><input id="cpFirstName" type="text"></div>
+        <div class="field"><label>Last name</label><input id="cpLastName" type="text"></div>
+      </div>
+      <div class="kid-fields" id="cpKidFields">
+        <p class="deposit-note" style="margin-top:0;">Enter your kid's name so you get access to their page.</p>
+        <div class="form-row">
+          <div class="field"><label>Kid's first name</label><input id="cpKidFirstName" type="text"></div>
+          <div class="field"><label>Kid's last name</label><input id="cpKidLastName" type="text"></div>
+        </div>
+      </div>
+      <p class="auth-error" id="cpError"></p>
+      <button class="add-btn" data-tab="earn" onclick="completeProfile()">Finish setup</button>
+    </div>
   </div>
 </div>
 
@@ -419,8 +440,42 @@ async function doLogout(){
   myProfile = null; activeUserId = null; kidOptions = [];
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('authScreen').style.display = 'block';
+  document.getElementById('completeProfilePanel').style.display = 'none';
+  document.querySelectorAll('.auth-tab').forEach(t => t.style.display = 'block');
+  setAuthTab('login');
   document.getElementById('loginEmail').value = '';
   document.getElementById('loginPassword').value = '';
+}
+
+function setCompleteRole(role){
+  document.getElementById('cpRoleBtn-kid').classList.toggle('active', role === 'kid');
+  document.getElementById('cpRoleBtn-parent').classList.toggle('active', role === 'parent');
+  document.getElementById('cpKidFields').classList.toggle('show', role === 'parent');
+  document.getElementById('completeProfilePanel').dataset.role = role;
+}
+
+async function completeProfile(){
+  const { data: { user } } = await sb.auth.getUser();
+  if(!user) return;
+  const firstName = document.getElementById('cpFirstName').value.trim();
+  const lastName = document.getElementById('cpLastName').value.trim();
+  const role = document.getElementById('completeProfilePanel').dataset.role || 'kid';
+  const kidFirstName = document.getElementById('cpKidFirstName').value.trim();
+  const kidLastName = document.getElementById('cpKidLastName').value.trim();
+  const err = document.getElementById('cpError');
+  err.textContent = '';
+  if(!firstName || !lastName){ err.textContent = 'Enter your first and last name.'; return; }
+  if(role === 'parent' && (!kidFirstName || !kidLastName)){ err.textContent = "Enter your kid's first and last name."; return; }
+
+  const { error } = await sb.from('bank_profiles').insert({
+    id: user.id, first_name: firstName, last_name: lastName, email: user.email, role
+  });
+  if(error){ err.textContent = error.message; return; }
+  if(role === 'parent'){
+    await sb.from('bank_parent_links').insert({ parent_id: user.id, kid_first_name: kidFirstName, kid_last_name: kidLastName });
+  }
+  document.getElementById('completeProfilePanel').style.display = 'none';
+  await postLoginSetup();
 }
 
 /* ---------------- Post-login setup ---------------- */
@@ -430,7 +485,15 @@ async function postLoginSetup(){
 
   let { data: profile } = await sb.from('bank_profiles').select('*').eq('id', user.id).maybeSingle();
   myProfile = profile;
-  if(!myProfile) return; // shouldn't happen once signup completes
+  if(!myProfile){
+    document.getElementById('loginPanel').style.display = 'none';
+    document.getElementById('signupPanel').style.display = 'none';
+    document.querySelectorAll('.auth-tab').forEach(t => t.style.display = 'none');
+    document.getElementById('completeProfilePanel').style.display = 'block';
+    document.getElementById('authScreen').style.display = 'block';
+    document.getElementById('appScreen').style.display = 'none';
+    return;
+  }
 
   if(myProfile.role === 'kid'){
     await claimPendingLinks();
@@ -785,8 +848,8 @@ function escapeHtml(str){
 
 document.getElementById('amountInput').addEventListener('keydown', e => { if(e.key === 'Enter') addEarn(); });
 document.getElementById('descInput').addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('amountInput').focus(); });
-document.getElementById('depositAmountInput').addEventListener('keydown', e => { if(e.key === 'Enter') addDeposit(); });
 document.getElementById('signupPanel').dataset.role = 'kid';
+document.getElementById('completeProfilePanel').dataset.role = 'kid';
 </script>
 </body>
 </html>
